@@ -179,7 +179,7 @@ export default function EditorPageClient() {
       </header>
 
       <div className="flex-1 overflow-hidden relative">
-        <Excalidraw />
+        <Excalidraw excalidrawAPI={onMount} />
         <div className="fixed bottom-4 right-4 z-50">
           <Button
             onClick={() => setShowAIDialog(true)}
