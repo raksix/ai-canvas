@@ -89,33 +89,8 @@ export default function EditorPageClient() {
       const result = await api.generateDiagramSvg(aiPrompt);
       
       if (result.svg) {
-        // Convert SVG to PNG first
-        const pngDataUrl = await new Promise<string>((resolve, reject) => {
-          const img = new Image();
-          const svgBlob = new Blob([result.svg], { type: 'image/svg+xml;charset=utf-8' });
-          const url = URL.createObjectURL(svgBlob);
-          
-          img.onload = () => {
-            const canvas = document.createElement('canvas');
-            canvas.width = 800;
-            canvas.height = 500;
-            const ctx = canvas.getContext('2d');
-            if (ctx) {
-              ctx.fillStyle = 'white';
-              ctx.fillRect(0, 0, canvas.width, canvas.height);
-              ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-              resolve(canvas.toDataURL('image/png'));
-            } else {
-              reject(new Error('Canvas context not available'));
-            }
-            URL.revokeObjectURL(url);
-          };
-          img.onerror = () => {
-            URL.revokeObjectURL(url);
-            reject(new Error('Failed to load SVG image'));
-          };
-          img.src = url;
-        });
+        // Convert SVG to base64 data URL
+        const svgDataUrl = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(result.svg)));
         
         // Create image element for Excalidraw
         const imageElement = {
@@ -123,8 +98,8 @@ export default function EditorPageClient() {
           type: 'image' as const,
           x: 150,
           y: 150,
-          width: 800,
-          height: 500,
+          width: 600,
+          height: 400,
           strokeColor: '#000000',
           backgroundColor: 'transparent',
           fillStyle: 'solid' as const,
@@ -161,10 +136,10 @@ export default function EditorPageClient() {
           originalText: null,
           lineHeight: 1.25,
           data: {
-            url: pngDataUrl,
-            naturalWidth: 800,
-            naturalHeight: 500,
-            mimeType: 'image/png',
+            url: svgDataUrl,
+            naturalWidth: 600,
+            naturalHeight: 400,
+            mimeType: 'image/svg+xml',
             generatedId: `ai-img-${Date.now()}`,
             hash: Date.now().toString(),
           },
@@ -172,14 +147,7 @@ export default function EditorPageClient() {
           fileId: `ai-img-${Date.now()}`,
         };
         
-        // Get current elements and add new image
-        const currentElements = excalidrawRef.current.getSceneElements();
-        excalidrawRef.current.updateScene({
-          elements: [...currentElements, imageElement],
-          commitToHistory: true,
-        });
-        
-        toast.success('Diagram added as PNG!');
+        toast.success('SVG diagram added!');
         setShowAIDialog(false);
         setAiPrompt('');
       }
