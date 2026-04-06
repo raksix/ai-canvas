@@ -36,6 +36,15 @@ export class AiController {
     return this.aiService.generateDiagram(req.user.id, { prompt: body.prompt });
   }
 
+  @Post('diagram-svg')
+  @ApiOperation({ summary: 'Generate SVG diagram from prompt' })
+  async generateDiagramSvg(
+    @Body() body: { prompt: string },
+    @Request() req,
+  ) {
+    return this.aiService.generateDiagramSvg(req.user.id, { prompt: body.prompt });
+  }
+
   @Get('settings')
   @ApiOperation({ summary: 'Get AI settings' })
   async getSettings(@Request() req) {

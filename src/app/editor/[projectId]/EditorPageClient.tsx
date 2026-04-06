@@ -46,15 +46,15 @@ export default function EditorPageClient() {
     };
   }, []);
 
-  const onMount = useCallback((api: any) => {
-    excalidrawRef.current = api;
+  const onMount = useCallback((excalidrawAPI: any) => {
+    excalidrawRef.current = excalidrawAPI;
     
     // Load existing scene from MongoDB
     const loadScene = async () => {
       try {
         const { elements } = await api.getCanvas(projectId, 'default');
         if (elements && elements.length > 0) {
-          excalidrawRef.current.addElements(elements);
+          excalidrawRef.current.updateScene({ elements });
         }
       } catch (error) {
         console.error('Failed to load scene:', error);
@@ -85,61 +85,107 @@ export default function EditorPageClient() {
     
     setIsGenerating(true);
     try {
-      const result = await api.generateDiagram(aiPrompt);
+      // Generate SVG instead of JSON diagram
+      const result = await api.generateDiagramSvg(aiPrompt);
       
-      if (result.nodes && result.edges) {
-        const elements: any[] = [];
-        let offsetX = 100;
-        let offsetY = 100;
-        
-        result.nodes.forEach((node: any, index: number) => {
-          const x = node.x || offsetX + (index % 3) * 200;
-          const y = node.y || offsetY + Math.floor(index / 3) * 100;
+      if (result.svg) {
+        // Convert SVG to PNG first
+        const pngDataUrl = await new Promise<string>((resolve, reject) => {
+          const img = new Image();
+          const svgBlob = new Blob([result.svg], { type: 'image/svg+xml;charset=utf-8' });
+          const url = URL.createObjectURL(svgBlob);
           
-          elements.push({
-            type: node.type === 'circle' ? 'ellipse' : 'rectangle',
-            x,
-            y,
-            width: 150,
-            height: 60,
-            text: node.label,
-            strokeColor: '#1971c2',
-            backgroundColor: node.type === 'circle' ? '#e3fafc' : '#e9ecef',
-            fillStyle: 'solid',
-            strokeWidth: 2,
-            borderRadius: node.type === 'circle' ? 75 : 5,
-          });
+          img.onload = () => {
+            const canvas = document.createElement('canvas');
+            canvas.width = 800;
+            canvas.height = 500;
+            const ctx = canvas.getContext('2d');
+            if (ctx) {
+              ctx.fillStyle = 'white';
+              ctx.fillRect(0, 0, canvas.width, canvas.height);
+              ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+              resolve(canvas.toDataURL('image/png'));
+            } else {
+              reject(new Error('Canvas context not available'));
+            }
+            URL.revokeObjectURL(url);
+          };
+          img.onerror = () => {
+            URL.revokeObjectURL(url);
+            reject(new Error('Failed to load SVG image'));
+          };
+          img.src = url;
         });
         
-        result.edges.forEach((edge: any) => {
-          const fromNode = result.nodes.find((n: any) => n.id === edge.from);
-          const toNode = result.nodes.find((n: any) => n.id === edge.to);
-          
-          if (fromNode && toNode) {
-            const fromX = (fromNode.x || offsetX) + 75;
-            const fromY = (fromNode.y || offsetY) + 60;
-            const toX = (toNode.x || offsetX) + 75;
-            const toY = (toNode.y || offsetY);
-            
-            elements.push({
-              type: 'arrow',
-              points: [[fromX, fromY], [toX, toY]],
-              strokeColor: '#868e96',
-              strokeWidth: 2,
-              startArrowhead: null,
-              endArrowhead: 'arrow',
-            });
-          }
+        // Create image element for Excalidraw
+        const imageElement = {
+          id: `ai-img-${Date.now()}`,
+          type: 'image' as const,
+          x: 150,
+          y: 150,
+          width: 800,
+          height: 500,
+          strokeColor: '#000000',
+          backgroundColor: 'transparent',
+          fillStyle: 'solid' as const,
+          strokeWidth: 0,
+          strokeStyle: 'solid' as const,
+          roughness: 0,
+          opacity: 100,
+          groupIds: [],
+          roundness: null,
+          boundElements: [],
+          link: null,
+          updated: Date.now(),
+          version: 1,
+          versionNonce: Math.floor(Math.random() * 1000000),
+          isDeleted: false,
+          seed: Math.floor(Math.random() * 1000000),
+          parentId: null,
+          requestId: null,
+          focus: false,
+          pointerOffset: { x: 0, y: 0 },
+          zipper: false,
+          startBinding: null,
+          endBinding: null,
+          lastCommittedPoint: null,
+          startArrowhead: null,
+          endArrowhead: null,
+          text: null,
+          fontFamily: 1,
+          fontSize: 20,
+          textAlign: 'center' as const,
+          textVerticalAlign: 'middle' as const,
+          baseline: 14,
+          containerId: null,
+          originalText: null,
+          lineHeight: 1.25,
+          data: {
+            url: pngDataUrl,
+            naturalWidth: 800,
+            naturalHeight: 500,
+            mimeType: 'image/png',
+            generatedId: `ai-img-${Date.now()}`,
+            hash: Date.now().toString(),
+          },
+          status: 'pending' as const,
+          fileId: `ai-img-${Date.now()}`,
+        };
+        
+        // Get current elements and add new image
+        const currentElements = excalidrawRef.current.getSceneElements();
+        excalidrawRef.current.updateScene({
+          elements: [...currentElements, imageElement],
+          commitToHistory: true,
         });
         
-        excalidrawRef.current.addElements(elements);
-        toast.success('Diagram added!');
+        toast.success('Diagram added as PNG!');
         setShowAIDialog(false);
         setAiPrompt('');
       }
     } catch (error) {
       console.error('Failed:', error);
-      toast.error('Failed to generate');
+      toast.error('Failed to generate diagram');
     } finally {
       setIsGenerating(false);
     }

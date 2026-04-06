@@ -46,7 +46,8 @@ export class AiService {
       throw new BadRequestException('API key not configured. Please add your API key in settings.');
     }
 
-    const provider = request.provider || 'openai';
+    const settings = await this.aiSettingsService.getSettings(userId);
+    const provider = request.provider || settings.provider || 'openai';
 
     try {
       if (provider === 'openai') {
@@ -123,7 +124,7 @@ export class AiService {
 
   private async callGemini(apiKey: string, request: ChatRequest): Promise<{ response: string }> {
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
       {
         method: 'POST',
         headers: {
@@ -226,6 +227,48 @@ Return ONLY the JSON, no other text.`;
     }
   }
 
+  async generateDiagramSvg(userId: string, request: DiagramRequest): Promise<{ svg: string }> {
+    const apiKey = await this.aiSettingsService.getApiKey(userId);
+
+    if (!apiKey) {
+      throw new BadRequestException('API key not configured');
+    }
+
+    const prompt = `Generate an SVG diagram based on the description below. Return ONLY valid SVG markup with no markdown, no code blocks, no explanations - just pure SVG code.
+
+The SVG should be a simple flow chart or diagram with:
+- Rectangles for process steps (fill=#e9ecef, stroke=#1971c2)
+- Ellipses for start/end (fill=#e3fafc, stroke=#1971c2)  
+- Arrows connecting them (stroke=#868e96, marker-end arrow)
+- Text labels in each shape
+- ViewBox sized appropriately (e.g., viewBox="0 0 600 400")
+- Simple layout with nodes arranged logically
+
+Description: ${request.prompt}
+
+Return ONLY the SVG, starting with <svg and ending with </svg>. Do not include any text before or after.`;
+
+    const result = await this.chat(userId, { prompt });
+
+    try {
+      // Extract SVG from response
+      const svgMatch = result.response.match(/<svg[\s\S]*?<\/svg>/);
+      if (!svgMatch) {
+        throw new Error('No SVG found in response');
+      }
+      let svg = svgMatch[0];
+      
+      // Clean up any markdown or extra text
+      svg = svg.replace(/^[^<]*/, '');
+      svg = svg.replace(/[^>]*$/, '');
+      
+      return { svg };
+    } catch (error) {
+      console.error('SVG parsing error:', error);
+      throw new BadRequestException('Failed to generate SVG diagram. Please try again.');
+    }
+  }
+
   async testConnection(
     userId: string,
     provider: string,
@@ -269,7 +312,7 @@ Return ONLY the JSON, no other text.`;
         }
       } else if (provider === 'gemini') {
         const response = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
           {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },

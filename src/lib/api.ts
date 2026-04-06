@@ -1,4 +1,4 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4004/api';
+const API_URL = process.env.NEXT_PUBLIC_API_URL || '/api';
 
 interface RequestOptions {
   method?: string;
@@ -157,6 +157,13 @@ class ApiClient {
 
   async generateDiagram(prompt: string) {
     return this.request<{ nodes: any[]; edges: any[] }>('/ai/diagram', {
+      method: 'POST',
+      body: { prompt },
+    });
+  }
+
+  async generateDiagramSvg(prompt: string) {
+    return this.request<{ svg: string }>('/ai/diagram-svg', {
       method: 'POST',
       body: { prompt },
     });
