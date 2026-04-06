@@ -85,11 +85,15 @@ export default function EditorPageClient() {
     
     setIsGenerating(true);
     try {
+      // Get token from localStorage
+      const token = localStorage.getItem('token');
+      
       // Generate SVG and fetch as blob
       const response = await fetch('/api/ai/diagram-svg', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
         },
         body: JSON.stringify({ prompt: aiPrompt }),
       });
