@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Put, Body, UseGuards, Request } from '@nestjs/common';
+import { Controller, Post, Get, Put, Body, UseGuards, Request, Header } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { AiService, DiagramResponse } from './ai.service';
 import { AiSettingsService } from './ai-settings.service';
@@ -38,11 +38,13 @@ export class AiController {
 
   @Post('diagram-svg')
   @ApiOperation({ summary: 'Generate SVG diagram from prompt' })
+  @Header('Content-Type', 'image/svg+xml')
   async generateDiagramSvg(
     @Body() body: { prompt: string },
     @Request() req,
-  ) {
-    return this.aiService.generateDiagramSvg(req.user.id, { prompt: body.prompt });
+  ): Promise<string> {
+    const result = await this.aiService.generateDiagramSvg(req.user.id, { prompt: body.prompt });
+    return result.svg;
   }
 
   @Get('settings')

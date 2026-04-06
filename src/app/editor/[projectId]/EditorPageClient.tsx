@@ -85,72 +85,98 @@ export default function EditorPageClient() {
     
     setIsGenerating(true);
     try {
-      // Generate SVG instead of JSON diagram
-      const result = await api.generateDiagramSvg(aiPrompt);
+      // Generate SVG and fetch as blob
+      const response = await fetch('/api/ai/diagram-svg', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ prompt: aiPrompt }),
+      });
       
-      if (result.svg) {
-        // Convert SVG to base64 data URL
-        const svgDataUrl = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(result.svg)));
-        
-        // Create image element for Excalidraw
-        const imageElement = {
-          id: `ai-img-${Date.now()}`,
-          type: 'image' as const,
-          x: 150,
-          y: 150,
-          width: 600,
-          height: 400,
-          strokeColor: '#000000',
-          backgroundColor: 'transparent',
-          fillStyle: 'solid' as const,
-          strokeWidth: 0,
-          strokeStyle: 'solid' as const,
-          roughness: 0,
-          opacity: 100,
-          groupIds: [],
-          roundness: null,
-          boundElements: [],
-          link: null,
-          updated: Date.now(),
-          version: 1,
-          versionNonce: Math.floor(Math.random() * 1000000),
-          isDeleted: false,
-          seed: Math.floor(Math.random() * 1000000),
-          parentId: null,
-          requestId: null,
-          focus: false,
-          pointerOffset: { x: 0, y: 0 },
-          zipper: false,
-          startBinding: null,
-          endBinding: null,
-          lastCommittedPoint: null,
-          startArrowhead: null,
-          endArrowhead: null,
-          text: null,
-          fontFamily: 1,
-          fontSize: 20,
-          textAlign: 'center' as const,
-          textVerticalAlign: 'middle' as const,
-          baseline: 14,
-          containerId: null,
-          originalText: null,
-          lineHeight: 1.25,
-          data: {
-            url: svgDataUrl,
-            naturalWidth: 600,
-            naturalHeight: 400,
-            mimeType: 'image/svg+xml',
-            generatedId: `ai-img-${Date.now()}`,
-            hash: Date.now().toString(),
-          },
-          status: 'pending' as const,
-          fileId: `ai-img-${Date.now()}`,
-        };
-        
-        toast.success('SVG diagram added!');
-        setShowAIDialog(false);
-        setAiPrompt('');
+      if (!response.ok) {
+        throw new Error('Failed to generate SVG');
       }
+      
+      const svgText = await response.text();
+      
+      // Create blob and URL for SVG
+      const blob = new Blob([svgText], { type: 'image/svg+xml' });
+      const url = URL.createObjectURL(blob);
+      
+      // Load as image to get dimensions
+      const img = new Image();
+      await new Promise<void>((resolve, reject) => {
+        img.onload = () => resolve();
+        img.onerror = () => reject(new Error('Failed to load SVG'));
+        img.src = url;
+      });
+      
+      // Create image element for Excalidraw
+      const imageElement = {
+        id: `ai-img-${Date.now()}`,
+        type: 'image' as const,
+        x: 150,
+        y: 150,
+        width: Math.min(img.width, 800),
+        height: Math.min(img.height, 600),
+        strokeColor: '#000000',
+        backgroundColor: 'transparent',
+        fillStyle: 'solid' as const,
+        strokeWidth: 0,
+        strokeStyle: 'solid' as const,
+        roughness: 0,
+        opacity: 100,
+        groupIds: [],
+        roundness: null,
+        boundElements: [],
+        link: null,
+        updated: Date.now(),
+        version: 1,
+        versionNonce: Math.floor(Math.random() * 1000000),
+        isDeleted: false,
+        seed: Math.floor(Math.random() * 1000000),
+        parentId: null,
+        requestId: null,
+        focus: false,
+        pointerOffset: { x: 0, y: 0 },
+        zipper: false,
+        startBinding: null,
+        endBinding: null,
+        lastCommittedPoint: null,
+        startArrowhead: null,
+        endArrowhead: null,
+        text: null,
+        fontFamily: 1,
+        fontSize: 20,
+        textAlign: 'center' as const,
+        textVerticalAlign: 'middle' as const,
+        baseline: 14,
+        containerId: null,
+        originalText: null,
+        lineHeight: 1.25,
+        data: {
+          url: url,
+          naturalWidth: img.width,
+          naturalHeight: img.height,
+          mimeType: 'image/svg+xml',
+          generatedId: `ai-img-${Date.now()}`,
+          hash: Date.now().toString(),
+        },
+        status: 'pending' as const,
+        fileId: `ai-img-${Date.now()}`,
+      };
+      
+      // Get current elements and add new image
+      const currentElements = excalidrawRef.current.getSceneElements();
+      excalidrawRef.current.updateScene({
+        elements: [...currentElements, imageElement],
+        commitToHistory: true,
+      });
+      
+      toast.success('SVG diagram added!');
+      setShowAIDialog(false);
+      setAiPrompt('');
     } catch (error) {
       console.error('Failed:', error);
       toast.error('Failed to generate diagram');
